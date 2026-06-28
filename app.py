@@ -241,7 +241,7 @@ user_input = st.text_area(
 # ── API call with streaming ───────────────────────────────────────────────────
 def stream_response(user_text: str, system_prompt: str):
     """Stream response from OpenRouter API."""
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    api_key = os.getenv("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY", "")
     if not api_key:
         yield "⚠️ API ключ не найден. Проверьте файл `.env`."
         return
