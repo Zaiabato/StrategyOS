@@ -114,10 +114,10 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
 # ── Models with fallback ──────────────────────────────────────────────────────
 MODELS = [
-    "deepseek/deepseek-r1:free",
-    "x-ai/grok-4-fast:free",
+    "openai/gpt-oss-120b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "openrouter/free",   # последний фоллбек — роутер сам выберет
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "openrouter/free",
 ]
 
 # ── Session state ─────────────────────────────────────────────────────────────
