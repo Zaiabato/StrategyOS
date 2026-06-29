@@ -211,7 +211,7 @@ def stream_response(messages: list, tried_models=None):
         "stream": True,
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 2000,
+        "max_tokens": 4000,
     }
 
     try:
@@ -300,22 +300,13 @@ elif st.session_state.response:
 
     # Copy button
     col_copy, col_spacer = st.columns([1, 3])
-    with col_copy:
-        copy_js = f"""
-            <button onclick="
-                navigator.clipboard.writeText({json.dumps(st.session_state.response)});
-                this.innerText='✓ Скопировано';
-                this.style.borderColor='#7c6fef';
-                this.style.color='#7c6fef';
-                setTimeout(()=>{{this.innerText='⎘ Копировать';this.style.borderColor='';this.style.color='';}}, 2000);
-            " style="
-                background:transparent;border:1px solid #2a2a38;color:#7c7c9a;
-                border-radius:8px;padding:0.35rem 0.9rem;font-size:0.82rem;
-                cursor:pointer;font-family:Inter,sans-serif;margin-top:0.6rem;
-                transition:all 0.2s;
-            ">⎘ Копировать</button>
-        """
-        st.markdown(copy_js, unsafe_allow_html=True)
+with col_copy:
+    st.download_button(
+        label="⎘ Скопировать",
+        data=st.session_state.response,
+        file_name="strategy_analysis.md",
+        mime="text/markdown",
+    )
 
     # ── Follow-up chat ────────────────────────────────────────────────────────
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
