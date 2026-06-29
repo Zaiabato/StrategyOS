@@ -41,6 +41,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     box-shadow: 0 0 0 1px #7c6fef44 !important;
 }
 
+/* Все кнопки по умолчанию — фиолетовые */
 .stButton > button {
     background: #7c6fef !important; color: #fff !important;
     border: none !important; border-radius: 10px !important;
@@ -52,16 +53,27 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stButton > button:hover { background: #6a5de0 !important; transform: translateY(-1px) !important; }
 .stButton > button:active { transform: translateY(0) !important; }
 
-.stDownloadButton > button {
+/* Кнопка стоп — красная */
+div[data-testid="stButton"].stop-btn > button {
+    background: #3d1a1a !important;
+    color: #ff6b6b !important;
+    border: 1px solid #5a2020 !important;
+}
+div[data-testid="stButton"].stop-btn > button:hover {
+    background: #5a2020 !important;
+}
+
+/* Кнопка копировать — ghost */
+.stButton.copy-btn > button {
     background: transparent !important;
     border: 1px solid #2a2a38 !important;
     color: #7c7c9a !important;
     font-size: 0.82rem !important;
     font-weight: 500 !important;
-    padding: 0.4rem 1rem !important;
     width: auto !important;
+    padding: 0.35rem 1rem !important;
 }
-.stDownloadButton > button:hover {
+.stButton.copy-btn > button:hover {
     border-color: #7c6fef !important;
     color: #e8e8f0 !important;
     background: #1d1d2b !important;
@@ -92,6 +104,15 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     font-size: 0.82rem; color: #7c7c9a; margin-bottom: 1rem;
 }
 
+/* Копировать через st.code — скрываем сам блок кода, оставляем кнопку */
+.copy-code-block { position: relative; }
+.copy-code-block pre {
+    display: none !important;
+}
+.copy-code-block [data-testid="stCode"] > div:first-child {
+    justify-content: flex-start !important;
+}
+
 .stSpinner > div { border-top-color: #7c6fef !important; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #0f0f13; }
@@ -112,6 +133,8 @@ for key, default in [
     ("mode", "idea"),
     ("response", ""),
     ("chat_history", []),
+    ("generating", False),
+    ("stop_requested", False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -154,6 +177,8 @@ for i, key in enumerate(mode_keys):
             st.session_state.mode = key
             st.session_state.response = ""
             st.session_state.chat_history = []
+            st.session_state.generating = False
+            st.session_state.stop_requested = False
             st.rerun()
 
 # ── Input area ────────────────────────────────────────────────────────────────
@@ -173,7 +198,7 @@ user_input = st.text_area(
 def stream_response(messages: list, tried_models=None):
     api_key = os.getenv("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY", "")
     if not api_key:
-        yield "⚠️ API ключ не найден. Проверьте файл `.env`."
+        yield "⚠️ API ключ не найден."
         return
 
     if tried_models is None:
@@ -205,6 +230,9 @@ def stream_response(messages: list, tried_models=None):
         ) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():
+                # Проверяем флаг остановки на каждой итерации
+                if st.session_state.get("stop_requested"):
+                    break
                 if not line:
                     continue
                 text = line.decode("utf-8")
@@ -225,21 +253,44 @@ def stream_response(messages: list, tried_models=None):
         if code in (402, 429, 503, 404):
             yield from stream_response(messages, tried_models + [model])
         else:
-            yield f"⚠️ Ошибка API ({code}). Проверьте ключ OpenRouter."
+            yield f"⚠️ Ошибка API ({code})."
     except requests.exceptions.ConnectionError:
         yield "⚠️ Нет подключения к API."
     except Exception as e:
-        yield f"⚠️ Неожиданная ошибка: {str(e)}"
+        yield f"⚠️ Ошибка: {str(e)}"
 
 
 def run_stream(messages: list):
-    placeholder = st.empty()
+    """Стриминг с кнопкой Стоп."""
+    st.session_state.generating = True
+    st.session_state.stop_requested = False
+
+    response_placeholder = st.empty()
+    stop_placeholder = st.empty()
     full = ""
+
     with st.spinner("Думаю..."):
         for chunk in stream_response(messages):
+            if st.session_state.get("stop_requested"):
+                break
             full += chunk
-            placeholder.markdown(f'<div class="response-box">{full}▌</div>', unsafe_allow_html=True)
-    placeholder.markdown(f'<div class="response-box">{full}</div>', unsafe_allow_html=True)
+            response_placeholder.markdown(
+                f'<div class="response-box">{full}▌</div>',
+                unsafe_allow_html=True
+            )
+            # Кнопка Стоп во время генерации
+            with stop_placeholder:
+                if st.button("⏹ Остановить", key=f"stop_{len(full)}"):
+                    st.session_state.stop_requested = True
+
+    # Финальный рендер без курсора
+    response_placeholder.markdown(
+        f'<div class="response-box">{full}</div>',
+        unsafe_allow_html=True
+    )
+    stop_placeholder.empty()
+    st.session_state.generating = False
+    st.session_state.stop_requested = False
     return full
 
 
@@ -251,7 +302,9 @@ if submit:
         st.warning("Введите запрос — поле не может быть пустым.")
     else:
         st.session_state.chat_history = []
+        st.session_state.response = ""
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
         messages = [
             {"role": "system", "content": current["system"]},
             {"role": "user", "content": user_input},
@@ -264,7 +317,7 @@ if submit:
         ]
         st.rerun()
 
-# ── Response + download + chat ────────────────────────────────────────────────
+# ── Response + copy + chat ────────────────────────────────────────────────────
 elif st.session_state.response:
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
@@ -274,13 +327,9 @@ elif st.session_state.response:
         unsafe_allow_html=True,
     )
 
-    # Кнопка скачать
-    st.download_button(
-        label="⎘ Скачать анализ",
-        data=st.session_state.response,
-        file_name="strategy_analysis.md",
-        mime="text/markdown",
-    )
+    # Кнопка копировать — через st.code (встроенная кнопка копирования Streamlit)
+    st.markdown("**Скопировать текст ответа:**")
+    st.code(st.session_state.response, language=None)
 
     # Чат
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
