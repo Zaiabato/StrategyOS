@@ -114,9 +114,10 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
 # ── Models with fallback ──────────────────────────────────────────────────────
 MODELS = [
-    "google/gemini-2.0-flash-exp:free",
+    "deepseek/deepseek-r1:free",
+    "x-ai/grok-4-fast:free",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "mistralai/mistral-7b-instruct:free",
+    "openrouter/free",   # последний фоллбек — роутер сам выберет
 ]
 
 # ── Session state ─────────────────────────────────────────────────────────────
