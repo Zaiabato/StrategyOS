@@ -7,7 +7,6 @@ from prompts import PROMPTS
 
 load_dotenv()
 
-# ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="StrategyAI — Думай быстрее",
     page_icon="🧠",
@@ -15,22 +14,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
 .stApp { background: #0f0f13; color: #e8e8f0; }
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 2rem; max-width: 780px; }
 
 .hero { text-align: center; padding: 3rem 0 2rem; }
-.hero h1 {
-    font-size: 2.6rem; font-weight: 700;
-    letter-spacing: -0.03em; color: #ffffff; margin-bottom: 0.4rem;
-}
+.hero h1 { font-size: 2.6rem; font-weight: 700; letter-spacing: -0.03em; color: #ffffff; margin-bottom: 0.4rem; }
 .hero .subtitle { font-size: 1.05rem; color: #7c7c9a; font-weight: 400; }
 .hero .accent { color: #7c6fef; }
 
@@ -58,15 +52,16 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stButton > button:hover { background: #6a5de0 !important; transform: translateY(-1px) !important; }
 .stButton > button:active { transform: translateY(0) !important; }
 
-/* Secondary (ghost) button */
-.secondary-btn > button {
+.stDownloadButton > button {
     background: transparent !important;
     border: 1px solid #2a2a38 !important;
     color: #7c7c9a !important;
     font-size: 0.82rem !important;
+    font-weight: 500 !important;
     padding: 0.4rem 1rem !important;
+    width: auto !important;
 }
-.secondary-btn > button:hover {
+.stDownloadButton > button:hover {
     border-color: #7c6fef !important;
     color: #e8e8f0 !important;
     background: #1d1d2b !important;
@@ -78,24 +73,17 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     border-radius: 14px; padding: 1.6rem 1.8rem;
     margin-top: 1rem; line-height: 1.75; color: #d8d8ec;
 }
-.response-box h2 {
-    color: #ffffff; font-size: 1.05rem; font-weight: 600;
-    margin-top: 1.4rem; margin-bottom: 0.4rem;
-}
+.response-box h2 { color: #ffffff; font-size: 1.05rem; font-weight: 600; margin-top: 1.4rem; margin-bottom: 0.4rem; }
 .response-box h3 { color: #b0b0d0; font-size: 0.95rem; }
 .response-box strong { color: #e8e8f0; }
 
-/* Chat messages */
 .chat-user {
     background: #1d1d2b; border: 1px solid #2a2a38;
     border-radius: 12px 12px 4px 12px;
     padding: 0.8rem 1.1rem; margin: 0.8rem 0 0.4rem auto;
-    max-width: 85%; color: #e8e8f0; font-size: 0.9rem;
-    text-align: right;
+    max-width: 85%; color: #e8e8f0; font-size: 0.9rem; text-align: right;
 }
-.chat-label {
-    font-size: 0.72rem; color: #5e5e78; margin-bottom: 0.5rem;
-}
+.chat-label { font-size: 0.72rem; color: #5e5e78; margin-bottom: 0.5rem; }
 
 .mode-badge {
     display: inline-flex; align-items: center; gap: 6px;
@@ -105,14 +93,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 }
 
 .stSpinner > div { border-top-color: #7c6fef !important; }
-
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #0f0f13; }
 ::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 3px; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Models with fallback ──────────────────────────────────────────────────────
+# ── Models ────────────────────────────────────────────────────────────────────
 MODELS = [
     "openai/gpt-oss-120b:free",
     "meta-llama/llama-3.3-70b-instruct:free",
@@ -124,8 +111,7 @@ MODELS = [
 for key, default in [
     ("mode", "idea"),
     ("response", ""),
-    ("chat_history", []),  # list of {"role": "user"|"assistant", "content": str}
-    ("copied", False),
+    ("chat_history", []),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -168,7 +154,6 @@ for i, key in enumerate(mode_keys):
             st.session_state.mode = key
             st.session_state.response = ""
             st.session_state.chat_history = []
-            st.session_state.copied = False
             st.rerun()
 
 # ── Input area ────────────────────────────────────────────────────────────────
@@ -184,9 +169,8 @@ user_input = st.text_area(
     label_visibility="collapsed",
 )
 
-# ── API call with fallback ────────────────────────────────────────────────────
+# ── API ───────────────────────────────────────────────────────────────────────
 def stream_response(messages: list, tried_models=None):
-    """Stream response with automatic model fallback."""
     api_key = os.getenv("OPENROUTER_API_KEY") or st.secrets.get("OPENROUTER_API_KEY", "")
     if not api_key:
         yield "⚠️ API ключ не найден. Проверьте файл `.env`."
@@ -238,8 +222,7 @@ def stream_response(messages: list, tried_models=None):
 
     except requests.exceptions.HTTPError as e:
         code = e.response.status_code
-        if code in (402, 429, 503):
-            # Try next model silently
+        if code in (402, 429, 503, 404):
             yield from stream_response(messages, tried_models + [model])
         else:
             yield f"⚠️ Ошибка API ({code}). Проверьте ключ OpenRouter."
@@ -249,19 +232,14 @@ def stream_response(messages: list, tried_models=None):
         yield f"⚠️ Неожиданная ошибка: {str(e)}"
 
 
-def render_response(text: str, placeholder):
-    placeholder.markdown(f'<div class="response-box">{text}</div>', unsafe_allow_html=True)
-
-
 def run_stream(messages: list):
-    """Run streaming and return full response."""
     placeholder = st.empty()
     full = ""
     with st.spinner("Думаю..."):
         for chunk in stream_response(messages):
             full += chunk
-            render_response(full + "▌", placeholder)
-    render_response(full, placeholder)
+            placeholder.markdown(f'<div class="response-box">{full}▌</div>', unsafe_allow_html=True)
+    placeholder.markdown(f'<div class="response-box">{full}</div>', unsafe_allow_html=True)
     return full
 
 
@@ -273,9 +251,7 @@ if submit:
         st.warning("Введите запрос — поле не может быть пустым.")
     else:
         st.session_state.chat_history = []
-        st.session_state.copied = False
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
         messages = [
             {"role": "system", "content": current["system"]},
             {"role": "user", "content": user_input},
@@ -288,31 +264,28 @@ if submit:
         ]
         st.rerun()
 
-# ── Show response + copy + chat ───────────────────────────────────────────────
+# ── Response + download + chat ────────────────────────────────────────────────
 elif st.session_state.response:
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
 
-    # Response
+    # Ответ
     st.markdown(
         f'<div class="response-box">{st.session_state.response}</div>',
         unsafe_allow_html=True,
     )
 
-    # Copy button
-    col_copy, col_spacer = st.columns([1, 3])
-with col_copy:
+    # Кнопка скачать
     st.download_button(
-        label="⎘ Скопировать",
+        label="⎘ Скачать анализ",
         data=st.session_state.response,
         file_name="strategy_analysis.md",
         mime="text/markdown",
     )
 
-    # ── Follow-up chat ────────────────────────────────────────────────────────
+    # Чат
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
     st.markdown("**💬 Уточнить или задать вопрос по ответу:**")
 
-    # Show previous chat turns (skip first user+assistant = initial analysis)
     history = st.session_state.chat_history
     for msg in history[2:]:
         if msg["role"] == "user":
@@ -338,13 +311,10 @@ with col_copy:
 
     if st.button("→ Отправить", key="follow_up_btn"):
         if follow_up.strip():
-            # Build full context: system + all history + new question
             messages = [{"role": "system", "content": current["system"]}] + history + [
                 {"role": "user", "content": follow_up}
             ]
-            st.markdown('<hr class="divider">', unsafe_allow_html=True)
             follow_response = run_stream(messages)
-
             st.session_state.chat_history.append({"role": "user", "content": follow_up})
             st.session_state.chat_history.append({"role": "assistant", "content": follow_response})
             st.rerun()
