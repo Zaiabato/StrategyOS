@@ -327,9 +327,33 @@ elif st.session_state.response:
         unsafe_allow_html=True,
     )
 
-    # Кнопка копировать — через st.code (встроенная кнопка копирования Streamlit)
-    st.markdown("**Скопировать текст ответа:**")
-    st.code(st.session_state.response, language=None)
+    # Кнопка копировать через компонент
+import streamlit.components.v1 as components
+escaped = st.session_state.response.replace("`", "\\`").replace("</", "<\\/")
+components.html(f"""
+<button onclick="
+    navigator.clipboard.writeText(`{escaped}`).then(() => {{
+        this.innerText = '✓ Скопировано';
+        this.style.borderColor = '#7c6fef';
+        this.style.color = '#7c6fef';
+        setTimeout(() => {{
+            this.innerText = '⎘ Копировать ответ';
+            this.style.borderColor = '#2a2a38';
+            this.style.color = '#7c7c9a';
+        }}, 2000);
+    }});
+" style="
+    background: transparent;
+    border: 1px solid #2a2a38;
+    color: #7c7c9a;
+    border-radius: 8px;
+    padding: 0.4rem 1.1rem;
+    font-size: 0.82rem;
+    font-family: Inter, sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+">⎘ Копировать ответ</button>
+""", height=45)
 
     # Чат
     st.markdown('<hr class="divider">', unsafe_allow_html=True)
